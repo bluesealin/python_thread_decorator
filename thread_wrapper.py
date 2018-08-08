@@ -7,32 +7,45 @@ def exec_time(object):
     return object
 
 class GuiThread(QThread):
-    def __init__(self, method, args=None):
+    def __init__(self, method, args=None, exec_times=None):
         super(GuiThread, self).__init__()
         self.method = method
         self.args = args
         self.parent = None
         self.run = True
+        self.exec_times = exec_times
 
     def set_args(self, args):
         self.args = args
 
+    def stop(self):
+        self.run = False
+
     def run(self):
-        #print "starting thread type {} name {} parent {}".format(type(self.method), self.method.__name__)
+        exec_times = self.exec_times
+        self.run = True
+        print "starting thread type {} name {}".format(type(self.method), self.method.__name__)
         while self.run:
             self.method(*self.args)
             time.sleep(0.5)
+            self.exec_times -= 1 if self.exec_times else None
+            if self.exec_times == 0:
+                self.stop()
+        self.exec_times = exec_times
 
-def thread_this_method(method):
+
+def thread_this_method(execs=None):
     print "creating decorator"
-    def wrapper(*args):
-        instance = args[0]
-        print "Type of {} is {}".format(method.__name__, type(instance.__getattribute__(method.__name__)))
-        thread = GuiThread(method)
-        thread.set_args(args)
-        instance.__setattr__(method.__name__, thread.start)
-        instance.__getattribute__(method.__name__)()
-    return wrapper
+    def wrap1(method):
+        def wrapper(*args, **kwargs):
+            instance = args[0]
+            print "Type of {} is {}".format(method.__name__, type(instance.__getattribute__(method.__name__)))
+            thread = GuiThread(method, exec_times=execs)
+            thread.set_args(args)
+            instance.__setattr__(method.__name__, thread.start)
+            instance.__getattribute__(method.__name__)()
+        return wrapper
+    return wrap1
 
 
 class Form(QDialog):
@@ -65,10 +78,10 @@ class Form(QDialog):
         self.sig.connect(self.myslot)
         self.bt4state = True
 
-    @thread_this_method
-    def bt4toggle(dupa):
-        dupa.b4.setDown(dupa.bt4state)
-        dupa.bt4state ^= True
+    @thread_this_method(execs=10)
+    def bt4toggle(self):
+        self.b4.setDown(self.bt4state)
+        self.bt4state ^= True
 
     def btnstate(self):
         self.sig.emit()
